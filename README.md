@@ -2,7 +2,7 @@
 
 > A dark-terminal product analytics lab for simulating and diagnosing multi-leg options execution reliability.
 
-**Repository:** https://github.com/Brajesh250/options-execution-reliability-lab · **Live app:** Not deployed yet · **API docs:** `http://localhost:8000/docs`
+**Repository:** https://github.com/Brajesh250/options-execution-reliability-lab · **Live app:** https://options-execution-reliability-lab.streamlit.app/ · **API docs:** `http://localhost:8000/docs`
 
 ![Strategy simulator](docs/assets/simulator.png)
 
