@@ -1,9 +1,0 @@
-__init__
-analytics
-api
-database
-domain
-services
-simulation
-ui
-utils
