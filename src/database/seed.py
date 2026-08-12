@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from threading import Lock
 from uuid import UUID, uuid5
 
 import numpy as np
@@ -12,12 +13,22 @@ from src.services.orders import save_simulation
 from src.simulation.engine import simulate
 
 NS = UUID("b41ab692-61cd-487c-a8c1-aa8f415a003b")
+SEED_LOCK = Lock()
 
 
 def seed_database(count=1600, seed=2026):
+    """Create demo data once, serializing concurrent Streamlit sessions."""
+    with SEED_LOCK:
+        _seed_database(count, seed)
+
+
+def _seed_database(count=1600, seed=2026):
     init_db()
+    last_abandoned_id = str(uuid5(NS, f"abandon-{count // 5 - 1}"))
     with session_scope() as db:
-        if db.scalar(select(func.count()).select_from(BasketOrder)) >= count:
+        baskets_ready = db.scalar(select(func.count()).select_from(BasketOrder)) >= count
+        abandoned_ready = db.get(StrategyBuild, last_abandoned_id) is not None
+        if baskets_ready and abandoned_ready:
             return
     rng = np.random.default_rng(seed)
     scenarios = [
@@ -66,35 +77,40 @@ def seed_database(count=1600, seed=2026):
         result.created_at = result.created_at.replace(year=day.year, month=day.month, day=day.day)
         build_id = str(uuid5(NS, f"build-{i}"))
         with session_scope() as db:
-            db.add(
-                StrategyBuild(
-                    build_id=build_id,
-                    session_id=req.session_id,
-                    timestamp=result.created_at.replace(tzinfo=None) - timedelta(minutes=2),
-                    strategy=strategy,
-                    underlying=underlying,
-                    reviewed=True,
-                    submitted=True,
+            if db.get(StrategyBuild, build_id) is None:
+                db.add(
+                    StrategyBuild(
+                        build_id=build_id,
+                        session_id=req.session_id,
+                        timestamp=result.created_at.replace(tzinfo=None) - timedelta(minutes=2),
+                        strategy=strategy,
+                        underlying=underlying,
+                        reviewed=True,
+                        submitted=True,
+                    )
                 )
-            )
         save_simulation(result, req, build_id)
     with session_scope() as db:
         for i in range(count // 5):
             reviewed = bool(rng.random() < 0.65)
             day = today - timedelta(days=int(rng.integers(0, 90)))
-            db.add(
-                StrategyBuild(
-                    build_id=str(uuid5(NS, f"abandon-{i}")),
-                    session_id=f"abandon-{i}",
-                    timestamp=__import__("datetime").datetime.combine(
-                        day, __import__("datetime").time(10)
-                    ),
-                    strategy=str(rng.choice(STRATEGIES[:-1])),
-                    underlying=str(rng.choice(["NIFTY", "BANKNIFTY"])),
-                    reviewed=reviewed,
-                    submitted=False,
+            build_id = str(uuid5(NS, f"abandon-{i}"))
+            strategy = str(rng.choice(STRATEGIES[:-1]))
+            underlying = str(rng.choice(["NIFTY", "BANKNIFTY"]))
+            if db.get(StrategyBuild, build_id) is None:
+                db.add(
+                    StrategyBuild(
+                        build_id=build_id,
+                        session_id=f"abandon-{i}",
+                        timestamp=__import__("datetime").datetime.combine(
+                            day, __import__("datetime").time(10)
+                        ),
+                        strategy=strategy,
+                        underlying=underlying,
+                        reviewed=reviewed,
+                        submitted=False,
+                    )
                 )
-            )
 
 
 if __name__ == "__main__":
