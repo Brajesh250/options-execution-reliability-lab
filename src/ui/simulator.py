@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from time import sleep
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -42,6 +43,7 @@ def render():
         frame,
         hide_index=True,
         use_container_width=True,
+        num_rows="dynamic" if strategy == "Custom 2–4 leg strategy" else "fixed",
         column_config={
             "Type": st.column_config.SelectboxColumn(options=["CALL", "PUT"]),
             "Side": st.column_config.SelectboxColumn(options=["BUY", "SELL"]),
@@ -62,6 +64,9 @@ def render():
             )
             for r in edited.itertuples()
         ]
+        if strategy == "Custom 2–4 leg strategy" and not 2 <= len(legs) <= 4:
+            st.error("Custom strategies require between 2 and 4 legs.")
+            return
     except Exception as exc:
         st.error(f"Correct the leg table: {exc}")
         return
@@ -125,6 +130,16 @@ def render():
         )
         result = simulate(request)
         save_simulation(result, request)
+        with st.status("Executing basket…", expanded=True) as execution_status:
+            for leg in result.legs:
+                for event in leg.events:
+                    st.write(f"`{leg.leg_id}` · {event.event_name} · {event.status}")
+                    sleep(0.04)
+            execution_status.update(
+                label=f"Basket {result.final_status}",
+                state="complete" if result.final_status == "COMPLETED" else "error",
+                expanded=False,
+            )
         st.session_state.last_result = result
     result = st.session_state.get("last_result")
     if result:
