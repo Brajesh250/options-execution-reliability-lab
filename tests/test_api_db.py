@@ -2,7 +2,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import inspect
 
 from src.api.main import app
-from src.database.db import engine, init_db
+from src.database.db import engine, init_db, session_scope
+from src.database.tables import StrategyBuild
 from src.domain.models import Scenario
 
 
@@ -31,6 +32,8 @@ def test_api_simulation(request_factory):
     req = request_factory(scenario=Scenario.NORMAL)
     response = TestClient(app).post("/simulations", json=req.model_dump(mode="json"))
     assert response.status_code == 200 and response.json()["final_status"] == "COMPLETED"
+    with session_scope() as db:
+        assert db.get(StrategyBuild, f"build-{response.json()['order_id']}") is not None
 
 
 def test_missing_order_404():

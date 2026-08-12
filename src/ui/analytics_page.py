@@ -48,29 +48,32 @@ def render():
         (global_k["strategy_builds_started"], submitted_builds),
     )
     cards = [
-        ("Builds", k["strategy_builds_started"], None),
+        ("Builds (all)", k["strategy_builds_started"], None),
         ("Submitted", k["orders_submitted"], None),
         ("Completed", k["completed_orders"], None),
         ("Completion", k["basket_completion_rate"], "pct"),
-        ("Abandonment", k["abandonment_rate"], "pct"),
+        ("Abandonment (all)", k["abandonment_rate"], "pct"),
+        ("Leg fill", k["leg_fill_rate"], "pct"),
         ("Partial fill", k["partial_fill_rate"], "pct"),
         ("Rejection", k["rejection_rate"], "pct"),
         ("Median latency", k["median_latency_ms"], "ms"),
         ("P95 latency", k["p95_latency_ms"], "ms"),
         ("Avg slippage", k["average_slippage"], "rupee"),
     ]
-    cols = st.columns(5)
-    for i, (label, value, fmt) in enumerate(cards):
-        cols[i % 5].metric(
-            label,
-            f"{value:.1%}"
-            if fmt == "pct"
-            else f"{value:,.0f} ms"
-            if fmt == "ms"
-            else f"₹{value:.2f}"
-            if fmt == "rupee"
-            else f"{value:,}",
-        )
+    st.caption("Build and abandonment metrics are global; execution metrics follow filters.")
+    for row in (cards[:6], cards[6:]):
+        cols = st.columns(len(row))
+        for col, (label, value, fmt) in zip(cols, row, strict=True):
+            col.metric(
+                label,
+                f"{value:.1%}"
+                if fmt == "pct"
+                else f"{value:,.0f} ms"
+                if fmt == "ms"
+                else f"₹{value:.2f}"
+                if fmt == "rupee"
+                else f"{value:,}",
+            )
     if filtered.empty:
         st.warning("No orders match these filters.")
         return

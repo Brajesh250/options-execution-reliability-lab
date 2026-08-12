@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from pathlib import Path
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 DB_PATH = Path(__file__).resolve().parents[2] / "data" / "lab.db"
@@ -16,8 +16,27 @@ class Base(DeclarativeBase):
 
 def init_db():
     from src.database import tables  # noqa: F401
+    from src.database.tables import BasketOrder, StrategyBuild
 
     Base.metadata.create_all(engine)
+    with SessionLocal() as session:
+        missing = session.scalars(select(BasketOrder).where(BasketOrder.build_id.is_(None))).all()
+        for order in missing:
+            build_id = f"build-{order.order_id}"
+            if session.get(StrategyBuild, build_id) is None:
+                session.add(
+                    StrategyBuild(
+                        build_id=build_id,
+                        session_id=order.session_id,
+                        timestamp=order.created_at,
+                        strategy=order.strategy,
+                        underlying=order.underlying,
+                        reviewed=True,
+                        submitted=True,
+                    )
+                )
+            order.build_id = build_id
+        session.commit()
 
 
 @contextmanager

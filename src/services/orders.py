@@ -1,7 +1,13 @@
 from sqlalchemy import select
 
 from src.database.db import session_scope
-from src.database.tables import AccountSnapshot, BasketOrder, ExecutionEventRow, OrderLeg
+from src.database.tables import (
+    AccountSnapshot,
+    BasketOrder,
+    ExecutionEventRow,
+    OrderLeg,
+    StrategyBuild,
+)
 
 
 def save_simulation(result, request, build_id=None):
@@ -9,6 +15,19 @@ def save_simulation(result, request, build_id=None):
     with session_scope() as db:
         if db.get(BasketOrder, result.order_id):
             return result.order_id
+        if build_id is None:
+            build_id = f"build-{result.order_id}"
+            db.add(
+                StrategyBuild(
+                    build_id=build_id,
+                    session_id=request.session_id,
+                    timestamp=result.created_at.replace(tzinfo=None),
+                    strategy=result.strategy,
+                    underlying=result.underlying,
+                    reviewed=True,
+                    submitted=True,
+                )
+            )
         funds = request.available_margin + request.pledged_collateral * 0.8
         db.add(
             BasketOrder(
